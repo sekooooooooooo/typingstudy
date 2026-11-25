@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>英文タイピング実験</title>
+<style>
+/* layout: 1カラムの手順(説明→事前質問→練習→本番→結果). 本番は「お手本の英文」と「今打っている単語」を縦に並べる. */
+:root{
+  --bg:#f6f7f8; --surface:#ffffff; --ink:#16191c; --muted:#5d656e; --line:#d5d9de;
+  --accent:#1f4f7a; --done:#9aa3ab; --cur-bg:#e3ecf5; --ok:#1e6b3a; --warn:#8a5a00; --bad:#9b2c2c;
+  --sans:"Hiragino Sans","Noto Sans JP","Yu Gothic UI",system-ui,sans-serif;
+  --mono:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+  --serif:Georgia,"Times New Roman",serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121517; --surface:#1a1e21; --ink:#e4e8eb; --muted:#9aa3ab; --line:#2f353a;
+  --accent:#8db8de; --done:#5f686f; --cur-bg:#24313d; --ok:#7cc795; --warn:#e0b45c; --bad:#e58a8a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121517; --surface:#1a1e21; --ink:#e4e8eb; --muted:#9aa3ab; --line:#2f353a;
+  --accent:#8db8de; --done:#5f686f; --cur-bg:#24313d; --ok:#7cc795; --warn:#e0b45c; --bad:#e58a8a; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.7}
+.wrap{max-width:860px;margin:0 auto;padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header{border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:24px}
+h1{font-size:19px;margin:0}
+h2{font-size:17px;margin:0 0 8px}
+.sub{color:var(--muted);font-size:13px}
+section.view{display:flex;flex-direction:column;gap:16px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:20px}
+.panel p{margin:0 0 10px;max-width:70ch}
+.panel ul{margin:0 0 10px;padding-left:1.3em;max-width:70ch}
+.panel li{margin-bottom:4px}
+.steps{display:flex;gap:6px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.steps span{padding:2px 8px;border:1px solid var(--line);border-radius:999px}
+.steps span.on{color:var(--ink);border-color:var(--ink)}
+.field{display:flex;flex-direction:column;gap:6px;padding:12px 0;border-top:1px solid var(--line)}
+.field:first-of-type{border-top:0}
+.field>.q{font-weight:600}
+.opts{display:flex;flex-wrap:wrap;gap:6px 18px}
+.opts label{display:flex;align-items:center;gap:6px;cursor:pointer}
+input[type=text]{font:inherit;padding:6px 10px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--ink);width:12em}
+.btnrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button.btn{font:inherit;font-size:14px;font-weight:600;padding:8px 18px;border-radius:4px;border:1px solid var(--ink);background:var(--ink);color:var(--bg);cursor:pointer}
+button.btn.sec{background:transparent;color:var(--ink);border-color:var(--line)}
+button.btn:disabled{opacity:.4;cursor:not-allowed}
+button:focus-visible,input:focus-visible,.typebox:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.note{font-size:13px;color:var(--muted)}
+.alert{border-left:3px solid var(--warn);padding:8px 12px;background:var(--surface);font-size:14px}
+.alert.bad{border-color:var(--bad)}
+.alert.ok{border-color:var(--ok)}
+kbd{font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-bottom-width:2px;border-radius:3px;padding:0 5px;background:var(--bg)}
+/* task */
+.instr{display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px 12px;align-items:baseline}
+.instr .phase{font-weight:700}
+.instr .count{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.source{font-family:var(--serif);font-size:20px;line-height:1.9;padding:16px 18px;border:1px solid var(--line);border-radius:6px;background:var(--surface);user-select:none;-webkit-user-select:none}
+.source .w{padding:1px 2px;border-radius:3px}
+.source .w.done{color:var(--done)}
+.source .w.cur{background:var(--cur-bg);font-weight:700}
+.source .c.typed{color:var(--done)}
+.source .c.next{background:var(--accent);color:var(--surface);border-radius:2px;box-shadow:0 0 0 2px var(--accent)}
+.source .c.sp{font-family:var(--mono);font-size:14px;font-weight:400;padding:0 3px;margin-left:2px;vertical-align:middle}
+.typebox{font-family:var(--mono);font-size:22px;min-height:58px;padding:12px 14px;border:2px solid var(--line);border-radius:6px;background:var(--surface);cursor:text;white-space:pre;overflow-x:auto}
+.typebox:focus{border-color:var(--accent)}
+.typebox .ph{color:var(--muted);font-family:var(--sans);font-size:14px}
+.cursor{display:inline-block;width:.55em;height:1.1em;vertical-align:text-bottom;background:var(--ink);animation:blink 1.05s steps(1) infinite}
+.typebox:not(:focus) .cursor{background:transparent}
+@keyframes blink{50%{opacity:0}}
+@media (prefers-reduced-motion: reduce){.cursor{animation:none}}
+/* result */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.stats div{background:var(--surface);padding:10px 14px}
+.stats b{display:block;font-size:20px;font-variant-numeric:tabular-nums}
+.stats span{font-size:12px;color:var(--muted)}
+footer{margin-top:24px;font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>英文タイピング実験</h1>
+    <div class="sub">関西大学 小林研究室</div>
+  </header>
+
+  <!-- 1. 説明 -->
+  <section class="view" id="vIntro">
+    <div class="steps" data-step="0"></div>
+    <div class="panel">
+      <h2>実験の内容</h2>
+      <p>画面に表示される英語の文章(約100単語)を,キーボードで入力していただきます.人が文章を入力するときに,どのような打ち間違いをするかを調べるための実験です.</p>
+      <ul>
+        <li>記録するのは,入力した文字,キーを押した時刻,事前質問への回答です.氏名は記録しません.</li>
+        <li>所要時間は5分程度です.物理キーボードのあるPCで行ってください.</li>
+        <li>結果は,最後に自動で送信されます.</li>
+      </ul>
+      <p class="note">問い合わせ先: 関西大学 小林研究室 瀬古</p>
+      <div id="touchBlock" class="alert bad" hidden>スマートフォンやタブレットでは実施できません.物理キーボードのあるPCで開いてください.</div>
+      <div class="btnrow"><button class="btn" id="toSurvey">次へ</button></div>
+    </div>
+  </section>
+
+  <!-- 2. 事前質問 -->
+  <section class="view" id="vSurvey" hidden>
+    <div class="steps" data-step="1"></div>
+    <div class="panel" id="surveyForm">
+      <h2>事前質問</h2>
+      <div class="field"><span class="q">大学の講義で出たレポート課題は,普段どちらで書きますか</span><div class="opts">
+        <label><input type="radio" name="report_device" value="pc">PC</label>
+        <label><input type="radio" name="report_device" value="smartphone">スマートフォン</label></div></div>
+      <div class="field"><span class="q">自分のタイピングの速さに自信はありますか</span><div class="opts">
+        <label><input type="radio" name="typing_confidence" value="slow">遅い</label>
+        <label><input type="radio" name="typing_confidence" value="medium">そこそこ</label>
+        <label><input type="radio" name="typing_confidence" value="fast">速い</label></div></div>
+      <div class="btnrow" style="margin-top:12px"><button class="btn" id="toPractice" disabled>次へ</button>
+        <span class="note" id="surveyMissing"></span></div>
+    </div>
+  </section>
+
+  <!-- 3. 練習・本番 -->
+  <section class="view" id="vTask" hidden>
+    <div class="steps" data-step="2"></div>
+    <div class="panel" id="rules">
+      <h2>入力のルール</h2>
+      <ul>
+        <li>色の付いた単語を入力します.次に打つ文字が光ります.単語を打ち終えると <span style="font-family:var(--mono)">&#9251;</span> が光るので,<kbd>Space</kbd> キーを押して次の単語に進みます.最後の単語は <kbd>Space</kbd> か <kbd>Enter</kbd> で終わります.</li>
+        <li>お手本の単語と同じ文字数を入力するまで,<kbd>Space</kbd> を押しても次に進みません.文字を打ち漏らした場合は,そのまま続きを打ってください.</li>
+        <li><b>打ち間違えても直さず,そのまま次の文字を打ってください.</b><kbd>Backspace</kbd> は使えません.</li>
+        <li>大文字や記号(, . ' など)も,表示どおりに入力してください.</li>
+        <li>速さを競うものではありません.普段の文章を書くときのペースで入力してください.</li>
+        <li>日本語入力はオフ(半角英数)にしてください.</li>
+      </ul>
+      <p class="note" id="practiceNote">まず短い文で練習します.練習の入力は記録しません.</p>
+    </div>
+    <div class="panel" style="display:flex;flex-direction:column;gap:14px">
+      <div class="instr"><span class="phase" id="phase">練習</span><span class="count" id="count"></span></div>
+      <div class="source" id="source" aria-label="入力する英文"></div>
+      <div class="typebox" id="typebox" tabindex="0" role="textbox" aria-label="入力欄"></div>
+      <div id="notice" class="alert" hidden></div>
+      <div class="btnrow">
+        <button class="btn" id="startMain" hidden>本番を始める</button>
+        <button class="btn sec" id="redoPractice" hidden>もう一度練習する</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. 結果 -->
+  <section class="view" id="vDone" hidden>
+    <div class="steps" data-step="3"></div>
+    <div class="panel">
+      <h2>ご協力ありがとうございました</h2>
+      <p class="alert" id="sendMsg">結果を送信しています…</p>
+      <div id="fallback" hidden>
+        <p>お手数ですが,下の2つのボタンでCSVファイルを保存し,依頼した者(瀬古)にLINEやメールで送ってください.</p>
+        <div class="btnrow" style="margin-bottom:14px">
+          <button class="btn" id="saveCsv">結果のCSVを保存</button>
+          <button class="btn sec" id="saveKeys">キー入力ログのCSVを保存</button>
+          <span class="note" id="saveMsg"></span>
+        </div>
+      </div>
+      <div class="stats" id="stats" style="margin-top:14px"></div>
+      <div class="btnrow" style="margin-top:14px"><button class="btn sec" id="retrySend" hidden>もう一度送信する</button>
+        <button class="btn sec" id="newPerson">別の方が始める</button></div>
+    </div>
+  </section>
+
+  <footer id="ver"></footer>
+</div>
+
+<script>
+"use strict";
+/* =========================================================
+ * 設定
+ * ========================================================= */
+const APP_VERSION = "2026-11-26e";
+// 練習用(記録しない).アルファベット26文字をすべて含む英文.
+const PRACTICE_TEXT = "The quick brown fox jumps over the lazy dog.";
+// 本番用.Lewis Carroll "Alice's Adventures in Wonderland"(1865年,パブリックドメイン)第1章の冒頭.112単語.
+const TEXT_ID = "alice_ch1_open";
+const MAIN_TEXT = "Alice was beginning to get very tired of sitting by her sister on the bank, and of having nothing to do: once or twice she had peeped into the book her sister was reading, but it had no pictures or conversations in it, 'and what is the use of a book,' thought Alice 'without pictures or conversations?' So she was considering in her own mind (as well as she could, for the hot day made her feel very sleepy and stupid), whether the pleasure of making a daisy-chain would be worth the trouble of getting up and picking the daisies, when suddenly a White Rabbit with pink eyes ran close by her.";
+
+/* 重み付きLevenshtein距離
+ * 挿入・削除のコストは1.置換のコストは,QWERTY配列上の2つのキーの距離を9.0で割った値(最大1).
+ * キーの座標は (行, 列) で,行のずれは考えない(q-p の距離が9になる).
+ * 大文字と小文字,Shiftの有無だけが違う場合(a/A,1/! など)は,同じキーなので距離0になる.
+ * その場合のコストを SAME_KEY_COST とする(0にすると大文字小文字の間違いが見えなくなるため,隣のキー1個分としておく).
+ */
+// 結果の送信先(Google Apps Script のウェブアプリURL).空にすると,参加者にCSVを保存して送ってもらう方式になる.
+const ENDPOINT = "https://script.google.com/macros/s/AKfycbzAzSShSnDR7yKTeqPC-w7hvXjNKTSef3apsCFiqY_R64K0mwnYwTfSnzWCU9oUUyqc/exec";
+
+// true: お手本の単語の文字数に届くまで,Space(最後の単語ではEnterも)を押しても次の単語に進まない.
+const REQUIRE_FULL_LENGTH = true;
+
+const MAX_KEY_DIST = 9.0;
+const SAME_KEY_COST = 1 / MAX_KEY_DIST;
+const KEY_ROWS = ["1234567890-=", "qwertyuiop[]", "asdfghjkl;'", "zxcvbnm,./"];
+const SHIFT_MAP = { "!": "1", "@": "2", "#": "3", "$": "4", "%": "5", "^": "6", "&": "7", "*": "8", "(": "9", ")": "0", "_": "-", "+": "=", "{": "[", "}": "]", ":": ";", '"': "'", "<": ",", ">": ".", "?": "/" };
+
+/* ========================================================= */
+const $ = (id) => document.getElementById(id);
+$("ver").textContent = "ver. " + APP_VERSION;
+const STEPS = ["説明", "事前質問", "練習・本番", "結果"];
+document.querySelectorAll(".steps").forEach((el) => {
+  const on = +el.dataset.step;
+  el.innerHTML = STEPS.map((s, i) => `<span class="${i === on ? "on" : ""}">${s}</span>`).join("");
+});
+const VIEWS = ["vIntro", "vSurvey", "vTask", "vDone"];
+function show(id) { VIEWS.forEach((v) => ($(v).hidden = v !== id)); window.scrollTo(0, 0); }
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const r1 = (x) => (x === null || x === undefined || Number.isNaN(x) ? "" : Math.round(x * 10) / 10);
+const r4 = (x) => Math.round(x * 10000) / 10000;
+
+/* ---------- 説明・事前質問 ---------- */
+const touchOnly = matchMedia("(pointer: coarse)").matches && !matchMedia("(any-pointer: fine)").matches;
+$("touchBlock").hidden = !touchOnly;
+$("toSurvey").disabled = touchOnly;
+$("toSurvey").onclick = () => show("vSurvey");
+const radioVal = (n) => (document.querySelector(`input[name="${n}"]:checked`) || {}).value || null;
+function checkSurvey() {
+  const miss = ["report_device", "typing_confidence"].filter((k) => !radioVal(k)).length;
+  $("toPractice").disabled = miss > 0;
+  $("surveyMissing").textContent = miss ? `未回答: ${miss}問` : "";
+}
+$("surveyForm").addEventListener("change", checkSurvey);
+checkSurvey();
+
+let participant = null;
+$("toPractice").onclick = () => {
+  participant = { report_device: radioVal("report_device"), typing_confidence: radioVal("typing_confidence") };
+  startRun("practice");
+};
+
+/* ---------- 入力 ---------- */
+const box = $("typebox");
+let run = null; // 実行中の練習 or 本番
+
+function startRun(kind) {
+  const text = kind === "practice" ? PRACTICE_TEXT : MAIN_TEXT;
+  run = {
+    kind, words: text.split(/\s+/), idx: 0, buf: "",
+    t0: performance.now(), startedAt: new Date().toISOString(),
+    wordFirst: null, lastSpace: 0, wordKeys: 0, wordBs: 0, wordExtraSpace: 0, wordEarlySpace: 0,
+    results: [], keys: [], active: true,
+  };
+  show("vTask");
+  $("phase").textContent = kind === "practice" ? "練習" : "本番";
+  $("practiceNote").hidden = kind !== "practice";
+  $("rules").hidden = false;
+  $("startMain").hidden = true; $("redoPractice").hidden = true;
+  notice("");
+  renderSource(); renderBox();
+  box.focus();
+}
+// 今の単語は1文字ずつ表示し,打った文字数の位置(次に打つ文字)を光らせる.
+// 文字数ぶん打ち終えたら,Spaceを押す合図(␣)を光らせる.打ち間違いかどうかは色で示さない.
+function curWordHtml(w) {
+  const n = run.buf.length;
+  const chars = [...w].map((ch, k) => `<span class="c ${k < n ? "typed" : k === n ? "next" : ""}">${esc(ch)}</span>`).join("");
+  return chars + (run.active && n >= w.length ? '<span class="c next sp" title="Space">&#9251;</span>' : "");
+}
+function renderSource() {
+  $("source").innerHTML = run.words.map((w, i) =>
+    i === run.idx && run.active ? `<span class="w cur">${curWordHtml(w)}</span>`
+      : `<span class="w ${i < run.idx ? "done" : ""}">${esc(w)}</span>`).join(" ");
+  $("count").textContent = `${Math.min(run.idx + 1, run.words.length)} / ${run.words.length} 単語`;
+  const cur = $("source").querySelector(".cur");
+  if (cur) cur.scrollIntoView({ block: "nearest" });
+}
+function renderBox() {
+  if (!run.active) { box.innerHTML = ""; return; }
+  box.innerHTML = run.buf ? esc(run.buf) + '<span class="cursor"></span>'
+    : (run.idx === 0 && run.keys.length === 0 ? '<span class="ph">ここをクリックしてから入力を始めてください</span>' : '<span class="cursor"></span>');
+}
+function notice(msg, kind) { const n = $("notice"); n.textContent = msg; n.className = "alert" + (kind ? " " + kind : ""); n.hidden = !msg; }
+const now = (e) => ((e && e.timeStamp) || performance.now()) - run.t0;
+
+box.addEventListener("keydown", (e) => {
+  if (!run || !run.active) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) { if (e.key.toLowerCase() === "v") e.preventDefault(); return; }
+  const t = Math.round(now(e) * 10) / 10;
+  if (e.isComposing || e.keyCode === 229 || e.key === "Process") {
+    e.preventDefault();
+    notice("日本語入力がオンになっています.半角英数に切り替えてください(この入力は無視しました).", "bad");
+    return;
+  }
+  run.keys.push({ t, key: e.key, code: e.code, word_index: run.idx, repeat: e.repeat ? 1 : 0, caps: e.getModifierState && e.getModifierState("CapsLock") ? 1 : 0 });
+  if (e.key === "Backspace" || e.key === "Delete") { e.preventDefault(); run.wordBs++; notice("打ち間違えても直さず,そのまま次の文字を打ってください.", ""); return; }
+  if (e.key === " " || (e.key === "Enter" && run.idx === run.words.length - 1)) {
+    e.preventDefault();
+    if (run.buf.length === 0) { run.wordExtraSpace++; return; } // 単語を打つ前のスペースは無視
+    const need = run.words[run.idx].length;
+    if (REQUIRE_FULL_LENGTH && run.buf.length < need) {
+      run.wordEarlySpace++;
+      notice(`この単語は${need}文字です.あと${need - run.buf.length}文字入力してから Space を押してください.`, "");
+      return;
+    }
+    endWord(t);
+    return;
+  }
+  if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); return; }
+  if (e.key.length === 1) {
+    e.preventDefault();
+    if (/[^\x21-\x7e]/.test(e.key)) { notice("半角英数記号以外の文字は入力できません.", "bad"); return; }
+    if (run.wordFirst === null) run.wordFirst = t;
+    run.buf += e.key; run.wordKeys++;
+    notice("");
+    renderSource(); renderBox();
+  }
+});
+box.addEventListener("paste", (e) => e.preventDefault());
+box.addEventListener("focus", renderBox);
+box.addEventListener("blur", renderBox);
+
+function endWord(tSpace) {
+  const target = run.words[run.idx], typed = run.buf;
+  const lev = levenshtein(target, typed);
+  run.results.push({
+    word_index: run.idx + 1, target, typed,
+    correct: typed === target ? 1 : 0,
+    lev: lev.d, n_sub: lev.sub, n_ins: lev.ins, n_del: lev.del,
+    wlev: r4(weightedLevenshtein(target, typed)),
+    word_time_ms: r1(tSpace - run.wordFirst),
+    gap_ms: r1(run.wordFirst - run.lastSpace),
+    first_key_ms: r1(run.wordFirst), space_ms: r1(tSpace),
+    target_len: target.length, typed_len: typed.length,
+    n_keys: run.wordKeys, backspace_attempts: run.wordBs, extra_spaces: run.wordExtraSpace, early_spaces: run.wordEarlySpace,
+  });
+  run.lastSpace = tSpace; run.buf = ""; run.wordFirst = null; run.wordKeys = 0; run.wordBs = 0; run.wordExtraSpace = 0; run.wordEarlySpace = 0;
+  run.idx++;
+  if (run.idx >= run.words.length) { finishRun(); return; }
+  renderSource(); renderBox();
+}
+
+function finishRun() {
+  run.active = false; run.endedAt = new Date().toISOString();
+  renderSource(); renderBox();
+  if (run.kind === "practice") {
+    const err = run.results.filter((r) => !r.correct).length;
+    $("phase").textContent = "練習は以上です";
+    notice(err ? `練習では ${err} 単語で打ち間違いがありました.本番でも直さずに進めてください.` : "練習は以上です.本番も同じように入力してください.", "ok");
+    $("practiceNote").hidden = true;
+    $("startMain").hidden = false; $("redoPractice").hidden = false;
+    $("startMain").focus();
+    return;
+  }
+  mainRun = run;
+  // 参加者を区別するための識別子(開始日時+ランダムな文字列).氏名などとは結び付かない.
+  mainRun.sessionId = mainRun.startedAt.replace(/[-:.TZ]/g, "").slice(0, 14) + "-" + Math.random().toString(36).slice(2, 8).toUpperCase();
+  showResult();
+}
+$("startMain").onclick = () => startRun("main");
+$("redoPractice").onclick = () => startRun("practice");
+
+/* ---------- 距離の計算 ---------- */
+// 通常のLevenshtein距離と,置換・挿入・削除の回数
+function levenshtein(a, b) {
+  const m = a.length, n = b.length, D = [];
+  for (let i = 0; i <= m; i++) { D[i] = new Array(n + 1).fill(0); D[i][0] = i; }
+  for (let j = 0; j <= n; j++) D[0][j] = j;
+  for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++)
+    D[i][j] = Math.min(D[i - 1][j] + 1, D[i][j - 1] + 1, D[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  let i = m, j = n, sub = 0, ins = 0, del = 0;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && D[i][j] === D[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)) { if (a[i - 1] !== b[j - 1]) sub++; i--; j--; }
+    else if (i > 0 && D[i][j] === D[i - 1][j] + 1) { del++; i--; }   // お手本の文字が抜けた
+    else { ins++; j--; }                                               // 余分な文字が入った
+  }
+  return { d: D[m][n], sub, ins, del };
+}
+const KEY_POS = {};
+KEY_ROWS.forEach((row, r) => [...row].forEach((ch, c) => (KEY_POS[ch] = [r, c])));
+const baseKey = (ch) => { const l = ch.toLowerCase(); return SHIFT_MAP[l] || l; };
+function subCost(x, y) {
+  if (x === y) return 0;
+  const p = KEY_POS[baseKey(x)], q = KEY_POS[baseKey(y)];
+  if (!p || !q) return 1;
+  const d = Math.hypot(p[0] - q[0], p[1] - q[1]);
+  if (d === 0) return SAME_KEY_COST;
+  return Math.min(1, d / MAX_KEY_DIST);
+}
+function weightedLevenshtein(a, b) {
+  const m = a.length, n = b.length, D = [];
+  for (let i = 0; i <= m; i++) { D[i] = new Array(n + 1).fill(0); D[i][0] = i; }
+  for (let j = 0; j <= n; j++) D[0][j] = j;
+  for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++)
+    D[i][j] = Math.min(D[i - 1][j] + 1, D[i][j - 1] + 1, D[i - 1][j - 1] + subCost(a[i - 1], b[j - 1]));
+  return D[m][n];
+}
+
+/* ---------- 結果とCSV ---------- */
+let mainRun = null;
+function showResult() {
+  const R = mainRun.results;
+  const err = R.filter((r) => !r.correct).length;
+  const times = R.map((r) => r.word_time_ms).filter((x) => x !== "");
+  const avg = times.reduce((a, b) => a + b, 0) / times.length;
+  const totalSec = (R[R.length - 1].space_ms - R[0].first_key_ms) / 1000;
+  $("stats").innerHTML = [
+    [R.length, "単語数"], [err, "打ち間違えた単語"], [Math.round(avg) + " ms", "1単語の平均時間"], [totalSec.toFixed(1) + " 秒", "全体の時間"],
+  ].map(([b, s]) => `<div><b>${b}</b><span>${s}</span></div>`).join("");
+  $("saveMsg").textContent = "";
+  show("vDone");
+  sendResult();
+}
+async function sendResult() {
+  $("fallback").hidden = true; $("retrySend").hidden = true;
+  const msg = $("sendMsg");
+  msg.className = "alert"; msg.textContent = "結果を送信しています…";
+  let ok = false;
+  if (ENDPOINT) {
+    const info = sessionInfo();
+    const rows = mainRun.results.map((r) => ({ ...info, ...r }));
+    const payload = {
+      kind: "typing-v1", app_version: APP_VERSION, session_id: info.session_id,
+      columns: WORD_COLS, rows: rows.map((r) => WORD_COLS.map((c) => (r[c] === undefined ? "" : r[c]))),
+      words_csv: toCsv(WORD_COLS, rows), keys_csv: keysCsv(info),
+    };
+    try {
+      const res = await fetch(ENDPOINT, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(payload) });
+      ok = res.ok && (await res.text()).trim().startsWith("ok");
+    } catch (e) { console.warn(e); }
+  }
+  if (ok) {
+    msg.className = "alert ok";
+    msg.textContent = "送信しました.このままページを閉じて大丈夫です.";
+  } else {
+    msg.className = "alert bad";
+    msg.textContent = "結果を自動で送信できませんでした.";
+    $("fallback").hidden = false;
+    if (ENDPOINT) $("retrySend").hidden = false;
+  }
+}
+function csvCell(v) {
+  if (v === null || v === undefined) return "";
+  let s = String(v);
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; // Excelで数式として扱われないようにする
+  return /[",\r\n]/.test(s) || s !== s.trim() ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function toCsv(cols, rows) {
+  return "﻿" + [cols.join(","), ...rows.map((r) => cols.map((c) => csvCell(r[c])).join(","))].join("\r\n") + "\r\n";
+}
+function sessionInfo() {
+  return {
+    session_id: mainRun.sessionId,
+    report_device: participant.report_device, typing_confidence: participant.typing_confidence,
+    text_id: TEXT_ID, started_at: mainRun.startedAt, app_version: APP_VERSION,
+    platform: (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "",
+    user_agent: navigator.userAgent,
+  };
+}
+const WORD_COLS = ["session_id", "report_device", "typing_confidence", "text_id", "word_index", "target", "typed", "correct",
+  "lev", "wlev", "n_sub", "n_ins", "n_del", "word_time_ms", "gap_ms", "target_len", "typed_len", "n_keys", "backspace_attempts", "extra_spaces", "early_spaces",
+  "first_key_ms", "space_ms", "started_at", "app_version", "platform", "user_agent"];
+const KEY_COLS = ["session_id", "seq", "t_ms", "word_index", "key", "code", "repeat", "caps"];
+function download(name, text) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" }));
+  a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+}
+$("saveCsv").onclick = () => {
+  const info = sessionInfo();
+  download(`typing_${info.session_id}.csv`, toCsv(WORD_COLS, mainRun.results.map((r) => ({ ...info, ...r }))));
+  $("saveMsg").textContent = "保存しました.このファイルを送ってください.";
+};
+function keysCsv(info) {
+  return toCsv(KEY_COLS, mainRun.keys.map((k, i) => ({ session_id: info.session_id, seq: i + 1, t_ms: r1(k.t), word_index: k.word_index + 1, key: k.key === " " ? "Space" : k.key, code: k.code, repeat: k.repeat, caps: k.caps })));
+}
+$("saveKeys").onclick = () => {
+  const info = sessionInfo();
+  download(`typing_keys_${info.session_id}.csv`, keysCsv(info));
+};
+$("retrySend").onclick = sendResult;
+$("newPerson").onclick = () => {
+  participant = null; mainRun = null; run = null;
+  document.querySelectorAll("#vSurvey input[type=radio]").forEach((i) => (i.checked = false));
+  checkSurvey();
+  show("vIntro");
+};
+window.addEventListener("beforeunload", (e) => { if (run && run.active && run.kind === "main") { e.preventDefault(); e.returnValue = ""; } });
+</script>
+</body>
+</html>
